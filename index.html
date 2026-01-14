@@ -1,14 +1,104 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="h-full">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="CROWNS — a modern web app starter" />
-    <title>CROWNS</title>
+    <title>Crowns Enchanted Beauty Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/_sdk/data_sdk.js"></script>
+    <script src="/_sdk/element_sdk.js"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Lora:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        box-sizing: border-box;
+        font-family: "Lora", serif;
+      }
+
+      .heading-font {
+        font-family: "Cinzel", serif;
+      }
+
+      .card-shadow {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      }
+
+      .input-field {
+        transition: all 0.3s ease;
+      }
+
+      .input-field:focus {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+        outline: none;
+      }
+
+      .editable-field {
+        transition: all 0.2s ease;
+      }
+
+      .editable-field:focus {
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.3);
+      }
+
+      .toast {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 16px 24px;
+        border-radius: 8px;
+        color: white;
+        font-weight: bold;
+        z-index: 9999;
+        animation: slideIn 0.3s ease;
+      }
+
+      @keyframes slideIn {
+        from {
+          transform: translateX(400px);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        padding: 20px;
+      }
+
+      .modal-content {
+        background: white;
+        border-radius: 16px;
+        max-width: 500px;
+        width: 100%;
+        max-height: 90%;
+        overflow-y: auto;
+      }
+    </style>
+    <style>
+      @view-transition {
+        navigation: auto;
+      }
+    </style>
   </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+  <body class="h-full">
+    <div id="app" class="w-full h-full overflow-auto"></div>
+    <script src="/planner.js"></script>
   </body>
 </html>
 

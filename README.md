@@ -1,6 +1,14 @@
 # CROWNS
 
-A modern web app starter built with **Vite + React + TypeScript**.
+## Crowns Enchanted Beauty Planner
+
+A standalone web app for planning your holistic beauty + wellness journey:
+
+- **Dashboard** with quick navigation
+- **Calendar** (month/week/day) plus **week planner** + **month planner**
+- **Beauty assessments** (saved locally)
+- **Client intake** (saved locally)
+- **Holistic daily tracking** (saved locally)
 
 ## Quick start
 
