@@ -6,32 +6,57 @@
     <title>Crowns Enchanted Beauty Planner</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-      // Robust asset loading for hosts that serve the app under a sub-path
-      // and sometimes omit the trailing slash (e.g. /preview rather than /preview/).
+      // Robust script loader for various preview hosts:
+      // - Works for root hosting (/)
+      // - Works for sub-path hosting (/foo/, /foo)
+      // - Works for preview IDs embedded in the path (e.g. /iad1::...)
+      // - Ensures SDK scripts load BEFORE planner.js
       (function () {
+        var origin = window.location.origin;
         var path = window.location.pathname || "/";
-        var basePath;
 
-        if (path.endsWith("/")) {
-          basePath = path;
-        } else if (path.includes(".")) {
-          // likely a file path (e.g. /foo/index.html)
-          basePath = path.replace(/[^/]*$/, "");
-        } else {
-          // likely a directory route without trailing slash (e.g. /foo)
-          basePath = path + "/";
+        function computeBasePath(p) {
+          if (p.endsWith("/")) return p;
+          if (p.includes(".")) return p.replace(/[^/]*$/, "");
+          return p + "/";
         }
 
-        var baseUrl = window.location.origin + basePath;
-        function addScript(rel) {
+        var basePath = computeBasePath(path);
+
+        // Try resolving under the current path first, then fall back to site root.
+        var baseUrls = [origin + basePath, origin + "/"];
+
+        function loadScript(rel, idx, onDone) {
+          if (idx >= baseUrls.length) {
+            console.error("Failed to load script:", rel);
+            onDone(false);
+            return;
+          }
+
+          var url = new URL(rel, baseUrls[idx]).toString();
           var s = document.createElement("script");
-          s.src = new URL(rel, baseUrl).toString();
+          s.async = false;
+          s.src = url;
+          s.onload = function () {
+            onDone(true);
+          };
+          s.onerror = function () {
+            s.remove();
+            loadScript(rel, idx + 1, onDone);
+          };
           document.head.appendChild(s);
-          return s;
         }
 
-        addScript("_sdk/data_sdk.js");
-        addScript("_sdk/element_sdk.js");
+        // Expose a tiny loader queue for the body to run after #app exists.
+        window.__crownsLoad = function () {
+          loadScript("_sdk/data_sdk.js", 0, function (ok1) {
+            if (!ok1) return;
+            loadScript("_sdk/element_sdk.js", 0, function (ok2) {
+              if (!ok2) return;
+              loadScript("planner.js", 0, function () {});
+            });
+          });
+        };
       })();
     </script>
     <link
@@ -126,18 +151,7 @@
   <body class="h-full">
     <div id="app" class="w-full h-full overflow-auto"></div>
     <script>
-      (function () {
-        var path = window.location.pathname || "/";
-        var basePath;
-        if (path.endsWith("/")) basePath = path;
-        else if (path.includes(".")) basePath = path.replace(/[^/]*$/, "");
-        else basePath = path + "/";
-        var baseUrl = window.location.origin + basePath;
-
-        var s = document.createElement("script");
-        s.src = new URL("planner.js", baseUrl).toString();
-        document.body.appendChild(s);
-      })();
+      if (typeof window.__crownsLoad === "function") window.__crownsLoad();
     </script>
   </body>
 </html>
