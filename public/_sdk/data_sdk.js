@@ -4,6 +4,16 @@
   /** @type {any} */
   let handler = null;
 
+  function uuid() {
+    // Prefer crypto.randomUUID, but support older browsers/insecure contexts.
+    try {
+      if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+    } catch {
+      // ignore
+    }
+    return `id_${Date.now().toString(16)}_${Math.random().toString(16).slice(2)}`;
+  }
+
   /** @returns {any[]} */
   function load() {
     try {
@@ -51,7 +61,7 @@
     async create(obj) {
       try {
         const data = load();
-        const __backendId = obj.__backendId || crypto.randomUUID();
+        const __backendId = obj.__backendId || uuid();
         const record = { ...obj, __backendId };
         data.push(record);
         save(data);

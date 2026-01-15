@@ -5,8 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Crowns Enchanted Beauty Planner</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="./_sdk/data_sdk.js"></script>
-    <script src="./_sdk/element_sdk.js"></script>
+    <script>
+      // Robust asset loading for hosts that serve the app under a sub-path
+      // and sometimes omit the trailing slash (e.g. /preview rather than /preview/).
+      (function () {
+        var path = window.location.pathname || "/";
+        var basePath;
+
+        if (path.endsWith("/")) {
+          basePath = path;
+        } else if (path.includes(".")) {
+          // likely a file path (e.g. /foo/index.html)
+          basePath = path.replace(/[^/]*$/, "");
+        } else {
+          // likely a directory route without trailing slash (e.g. /foo)
+          basePath = path + "/";
+        }
+
+        var baseUrl = window.location.origin + basePath;
+        function addScript(rel) {
+          var s = document.createElement("script");
+          s.src = new URL(rel, baseUrl).toString();
+          document.head.appendChild(s);
+          return s;
+        }
+
+        addScript("_sdk/data_sdk.js");
+        addScript("_sdk/element_sdk.js");
+      })();
+    </script>
     <link
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Lora:wght@400;500;600&display=swap"
       rel="stylesheet"
@@ -98,7 +125,20 @@
   </head>
   <body class="h-full">
     <div id="app" class="w-full h-full overflow-auto"></div>
-    <script src="./planner.js"></script>
+    <script>
+      (function () {
+        var path = window.location.pathname || "/";
+        var basePath;
+        if (path.endsWith("/")) basePath = path;
+        else if (path.includes(".")) basePath = path.replace(/[^/]*$/, "");
+        else basePath = path + "/";
+        var baseUrl = window.location.origin + basePath;
+
+        var s = document.createElement("script");
+        s.src = new URL("planner.js", baseUrl).toString();
+        document.body.appendChild(s);
+      })();
+    </script>
   </body>
 </html>
 
