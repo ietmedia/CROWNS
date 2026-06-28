@@ -1,26 +1,137 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* Typography */
+  --font-display: "Cormorant Garamond", serif;
+  --font-sans: "Inter", sans-serif;
+
+  /* Brand purple */
+  --color-purple-deep:  #2D0A4E;
+  --color-purple-royal: #4A0E8F;
+  --color-purple-mid:   #7B2FBE;
+  --color-purple-light: #A855F7;
+
+  /* Brand gold */
+  --color-gold:       #D4A017;
+  --color-gold-light: #F0C040;
+  --color-gold-pale:  #FDF0B0;
+
+  /* Supporting palette */
+  --color-teal:        #0D9488;
+  --color-teal-light:  #2DD4BF;
+  --color-cream:       #FDF8F0;
+  --color-cream-dark:  #F5ECD7;
+  --color-charcoal:    #1A1A2E;
+
+  /* Semantic — page layout */
+  --color-background:        #2D0A4E;
+  --color-surface:           #1A1A2E;
+  --color-surface-card:      rgba(255, 255, 255, 0.05);
+  --color-surface-elevated:  rgba(255, 255, 255, 0.08);
+
+  /* Borders */
+  --color-border:       rgba(212, 160, 23, 0.2);
+  --color-border-light: rgba(255, 255, 255, 0.1);
+  --color-border-gold:  rgba(212, 160, 23, 0.5);
+
+  /* Text */
+  --color-text-primary:   #FDF8F0;
+  --color-text-secondary: #E2C9A0;
+  --color-text-muted:     #A855F7;
+  --color-text-dark:      #2D0A4E;
+
+  /* Accent (primary CTA = gold) */
+  --color-accent:            #D4A017;
+  --color-accent-dark:       #4A0E8F;
+  --color-accent-light:      #FDF0B0;
+  --color-accent-foreground: #1A1A2E;
+
+  /* Status */
+  --color-success:       #10B981;
+  --color-success-light: #D0FAE5;
+  --color-warning:       #F59E0B;
+  --color-error:         #EF4444;
+  --color-error-light:   #FEE2E2;
+  --color-info:          #2DD4BF;
+
+  /* Border radius */
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-2xl:  24px;
+  --radius-full: 9999px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Glassmorphism */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.glass-gold {
+  background: rgba(212, 160, 23, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(212, 160, 23, 0.25);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Gradient text */
+.text-gradient-gold {
+  background: linear-gradient(135deg, #D4A017 0%, #F0C040 50%, #D4A017 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-purple {
+  background: linear-gradient(135deg, #A855F7 0%, #7B2FBE 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glow effects */
+.glow-gold {
+  box-shadow: 0 0 20px rgba(212, 160, 23, 0.3), 0 0 60px rgba(212, 160, 23, 0.1);
+}
+
+.glow-purple {
+  box-shadow: 0 0 20px rgba(123, 47, 190, 0.4), 0 0 60px rgba(123, 47, 190, 0.15);
+}
+
+/* Animated gradient border */
+@keyframes gradient-border {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.border-gradient-animated {
+  background: linear-gradient(90deg, #D4A017, #A855F7, #0D9488, #D4A017);
+  background-size: 300% 300%;
+  animation: gradient-border 4s ease infinite;
+  padding: 1px;
+  border-radius: var(--radius-xl);
+}
+
+/* Font utilities */
+@utility font-display {
+  font-family: var(--font-display);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--color-surface); }
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-gold);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--color-gold); }
+
+/* Base selection */
+::selection {
+  background: rgba(212, 160, 23, 0.25);
+  color: var(--color-text-primary);
 }
