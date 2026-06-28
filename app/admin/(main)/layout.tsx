@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { createInsforgeServer } from "@/lib/insforge-server";
 import AdminSidebar from "@/components/layout/AdminSidebar";
 
 export default async function AdminMainLayout({
@@ -9,10 +9,15 @@ export default async function AdminMainLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const insforge = await createInsforgeServer();
-  const { data } = await insforge.auth.getCurrentUser();
-  const profile = data?.user?.profile as Record<string, unknown> | null;
-  const role = typeof profile?.role === "string" ? profile.role : null;
+  const { userId } = await auth();
+
+  if (!userId) {
+    redirect("/admin/login");
+  }
+
+  const client = await clerkClient();
+  const user = await client.users.getUser(userId);
+  const role = (user.publicMetadata as { role?: string } | undefined)?.role;
 
   if (role !== "admin") {
     redirect("/admin/login");
