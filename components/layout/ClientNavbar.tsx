@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { SignInButton, Show, UserButton } from "@clerk/nextjs";
+import { SignInButton, SignUpButton, Show, UserButton } from "@clerk/nextjs";
 
 const NAV_LINKS = [
   { href: "/book", label: "Book" },
@@ -56,10 +56,19 @@ export default function ClientNavbar() {
 
           <Show when="signed-out">
             <SignInButton mode="redirect">
-              <button className="text-sm text-text-secondary hover:text-text-primary transition-colors">
+              <button className="hidden sm:block text-sm text-text-secondary hover:text-text-primary transition-colors">
                 Sign In
               </button>
             </SignInButton>
+            <SignUpButton mode="redirect" forceRedirectUrl="/book">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.97 }}
+                className="bg-accent text-accent-foreground rounded-full px-5 py-2 text-sm font-medium hover:bg-gold-light transition-all duration-300"
+              >
+                Book Now
+              </motion.button>
+            </SignUpButton>
           </Show>
 
           <Show when="signed-in">
@@ -70,17 +79,16 @@ export default function ClientNavbar() {
                 },
               }}
             />
+            <Link href="/book">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.97 }}
+                className="bg-accent text-accent-foreground rounded-full px-5 py-2 text-sm font-medium hover:bg-gold-light transition-all duration-300"
+              >
+                Book Now
+              </motion.button>
+            </Link>
           </Show>
-
-          <Link href="/book">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.97 }}
-              className="bg-accent text-accent-foreground rounded-full px-5 py-2 text-sm font-medium hover:bg-gold-light transition-all duration-300"
-            >
-              Book Now
-            </motion.button>
-          </Link>
         </div>
       </div>
     </header>

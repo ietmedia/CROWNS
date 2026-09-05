@@ -11,6 +11,7 @@ export type CurrentUser = {
   id: string;
   email: string;
   fullName: string;
+  phone: string | null;
 };
 
 /** Returns the signed-in Clerk user mapped to app fields, or null. */
@@ -27,8 +28,12 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() ||
     email.split("@")[0] ||
     "Guest";
+  const phone =
+    user?.primaryPhoneNumber?.phoneNumber ??
+    user?.phoneNumbers?.[0]?.phoneNumber ??
+    null;
 
-  return { id: userId, email, fullName };
+  return { id: userId, email, fullName, phone };
 }
 
 /**
@@ -45,7 +50,14 @@ export async function syncClient(user: CurrentUser) {
     .eq("id", user.id)
     .maybeSingle();
 
-  if (existing) return existing;
+  if (existing) {
+    // Backfill a phone captured by Clerk if the row predates it.
+    if (user.phone && !(existing as { phone: string | null }).phone) {
+      await supabase.from("clients").update({ phone: user.phone }).eq("id", user.id);
+      return { ...existing, phone: user.phone };
+    }
+    return existing;
+  }
 
   // Insert if absent; ignore a duplicate from a concurrent request, then re-read.
   await supabase
@@ -56,6 +68,7 @@ export async function syncClient(user: CurrentUser) {
           id: user.id,
           email: user.email,
           full_name: user.fullName,
+          phone: user.phone,
           preferred_channel: "email",
         },
       ],
