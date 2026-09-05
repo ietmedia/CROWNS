@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { createInsforgeServer } from "@/lib/insforge-server";
+import { auth } from "@clerk/nextjs/server";
 
 const SYSTEM_PROMPT = `You are Crown Concierge, the luxury AI assistant for Crowns Enchanted — a premium natural hair care salon in Marietta, GA. You embody elegance, warmth, and expert knowledge of natural hair care.
 
@@ -33,9 +33,8 @@ export async function POST(request: Request) {
   }
 
   // Verify user is authenticated
-  const insforge = await createInsforgeServer();
-  const { data: { user } } = await insforge.auth.getCurrentUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     return Response.json({ error: "Please sign in to chat with Crown Concierge." }, { status: 401 });
   }
 

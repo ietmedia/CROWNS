@@ -1,14 +1,13 @@
 "use client";
 
 import { useState, useTransition, useRef } from "react";
-import { createBrowserClient } from "@insforge/sdk/ssr";
 import {
   type ServiceRow,
   createService,
   updateService,
   toggleServiceActive,
   deleteService,
-  addServiceImage,
+  uploadServiceImage,
   removeServiceImage,
 } from "@/actions/services";
 
@@ -153,24 +152,17 @@ function GalleryUploader({
     setUploading(true);
     setUploadError(null);
 
-    const insforge = createBrowserClient();
-    const { data, error } = await insforge.storage.from("services").uploadAuto(file);
+    const fd = new FormData();
+    fd.append("file", file);
+    const result = await uploadServiceImage(service.id, fd);
 
-    if (error || !data) {
-      setUploadError("Upload failed. Try again.");
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = "";
-      return;
-    }
-
-    const result = await addServiceImage(service.id, data.url, data.key);
-    if (result.error) {
-      setUploadError(result.error);
+    if (result.error || !result.url || !result.key) {
+      setUploadError(result.error ?? "Upload failed. Try again.");
     } else {
       onUpdate(
         service.id,
-        [...service.image_urls, data.url],
-        [...service.image_keys, data.key]
+        [...service.image_urls, result.url],
+        [...service.image_keys, result.key]
       );
     }
     setUploading(false);

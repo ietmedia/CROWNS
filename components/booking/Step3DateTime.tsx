@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { insforge } from "@/lib/insforge-client";
+import { getBookingSettings, getBookedStarts } from "@/actions/booking-data";
 import { generateSlots, formatTime } from "@/lib/utils";
 import type { Service } from "@/types";
 
@@ -31,48 +31,24 @@ export default function Step3DateTime({
   );
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [slots, setSlots] = useState<{ start: string; end: string }[]>([]);
-  const [bookedStarts, setBookedStarts] = useState<Set<string>>(new Set());
+  const [bookedStarts, setBookedStarts] = useState<Set<number>>(new Set());
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
   // Fetch salon settings once
   useEffect(() => {
-    insforge.database
-      .from("settings")
-      .select("open_time, close_time, slot_interval_minutes")
-      .limit(1)
-      .single()
-      .then(({ data }) => {
-        if (data) setSettings(data as Settings);
-      });
+    getBookingSettings().then((data) => setSettings(data));
   }, []);
 
   // Fetch slots when date selected
   useEffect(() => {
     if (!selectedDate || !settings) return;
     setLoadingSlots(true);
+    let cancelled = false;
 
-    const dayStart = new Date(selectedDate);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(selectedDate);
-    dayEnd.setHours(23, 59, 59, 999);
-
-    const query = insforge.database
-      .from("appointments")
-      .select("start_time")
-      .in("status", ["pending", "confirmed"])
-      .gte("start_time", dayStart.toISOString())
-      .lte("start_time", dayEnd.toISOString());
-
-    if (staffIdChoice !== "any") {
-      query.eq("staff_id", staffIdChoice);
-    }
-
-    query.then(({ data }) => {
-      const booked = new Set(
-        (data ?? []).map((a: { start_time: string }) => a.start_time)
-      );
-      setBookedStarts(booked);
+    getBookedStarts(selectedDate, staffIdChoice).then((starts) => {
+      if (cancelled) return;
+      setBookedStarts(new Set(starts));
 
       const generated = generateSlots(
         selectedDate,
@@ -83,10 +59,13 @@ export default function Step3DateTime({
       );
       // Filter out past slots
       const now = new Date();
-      const available = generated.filter((s) => new Date(s.start) > now);
-      setSlots(available);
+      setSlots(generated.filter((s) => new Date(s.start) > now));
       setLoadingSlots(false);
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedDate, settings, staffIdChoice, service.duration_minutes]);
 
   const prevMonth = () =>
@@ -225,7 +204,7 @@ export default function Step3DateTime({
               </p>
               <div className="grid grid-cols-2 gap-2 max-h-80 overflow-y-auto pr-1">
                 {slots.map((slot) => {
-                  const isBooked = bookedStarts.has(slot.start);
+                  const isBooked = bookedStarts.has(new Date(slot.start).getTime());
                   return (
                     <motion.button
                       key={slot.start}

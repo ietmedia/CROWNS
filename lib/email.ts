@@ -1,4 +1,37 @@
-import { createInsforgeAdmin } from "@/lib/insforge-admin";
+import { Resend } from "resend";
+
+const FROM = process.env.RESEND_FROM_EMAIL || "Crowns Enchanted <onboarding@resend.dev>";
+const ADMIN_EMAIL = "ashleyharris977@gmail.com";
+
+let _resend: Resend | null = null;
+function resend(): Resend | null {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return null;
+  if (!_resend) _resend = new Resend(key);
+  return _resend;
+}
+
+/** Sends an email via Resend. No-ops (logs) when RESEND_API_KEY is unset. */
+async function sendEmail(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  replyTo?: string;
+}): Promise<{ error: unknown }> {
+  const client = resend();
+  if (!client) {
+    console.warn(`[email] RESEND_API_KEY not set — skipped "${opts.subject}" to ${opts.to}`);
+    return { error: null };
+  }
+  const { error } = await client.emails.send({
+    from: FROM,
+    to: opts.to,
+    subject: opts.subject,
+    html: opts.html,
+    ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
+  });
+  return { error };
+}
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -16,7 +49,6 @@ type BookingEmailData = {
 };
 
 export async function sendBookingConfirmation(data: BookingEmailData) {
-  const insforge = createInsforgeAdmin();
 
   const start = new Date(data.startTime);
   const dateStr = start.toLocaleDateString("en-US", {
@@ -137,10 +169,9 @@ export async function sendBookingConfirmation(data: BookingEmailData) {
 </body>
 </html>`;
 
-  const { error } = await insforge.emails.send({
+  const { error } = await sendEmail({
     to: data.to,
-    from: "Crowns Enchanted",
-    replyTo: "ashleyharris977@gmail.com",
+    replyTo: ADMIN_EMAIL,
     subject: `✓ Confirmed: ${data.serviceName} on ${dateStr}`,
     html,
   });
@@ -156,7 +187,6 @@ export async function sendAdminBookingAlert(opts: {
   serviceName: string;
   startTime: string;
 }) {
-  const insforge = createInsforgeAdmin();
   const start = new Date(opts.startTime);
   const dateStr = start.toLocaleDateString("en-US", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
@@ -179,9 +209,8 @@ export async function sendAdminBookingAlert(opts: {
   </div>
 </body></html>`;
 
-  const { error } = await insforge.emails.send({
-    to: "ashleyharris977@gmail.com",
-    from: "Crowns Enchanted Admin",
+  const { error } = await sendEmail({
+    to: ADMIN_EMAIL,
     subject: `New Booking: ${opts.clientName} — ${opts.serviceName}`,
     html,
   });

@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createInsforgeServer } from "@/lib/insforge-server";
-import { createInsforgeAdmin } from "@/lib/insforge-admin";
+import { supabaseAdmin } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/current-user";
 
 export type IntakeForm = {
   id: string;
@@ -23,11 +23,11 @@ export type IntakeForm = {
 };
 
 export async function getIntakeForm(appointmentId: string) {
-  const insforge = await createInsforgeServer();
-  const { data: { user } } = await insforge.auth.getCurrentUser();
+  const supabase = supabaseAdmin();
+  const user = await getCurrentUser();
   if (!user) return { data: null, error: "Not authenticated." };
 
-  const { data } = await insforge.database
+  const { data } = await supabase
     .from("intake_forms")
     .select("*")
     .eq("appointment_id", appointmentId)
@@ -38,11 +38,11 @@ export async function getIntakeForm(appointmentId: string) {
 }
 
 export async function getAppointmentForIntake(appointmentId: string) {
-  const insforge = await createInsforgeServer();
-  const { data: { user } } = await insforge.auth.getCurrentUser();
+  const supabase = supabaseAdmin();
+  const user = await getCurrentUser();
   if (!user) return { data: null, error: "Not authenticated." };
 
-  const { data } = await insforge.database
+  const { data } = await supabase
     .from("appointments")
     .select("id, status, start_time, services(id, name), staff(id, name)")
     .eq("id", appointmentId)
@@ -71,13 +71,13 @@ export async function submitIntakeForm(input: {
   last_chemical_service: string;
   signature: string;
 }) {
-  const insforge = await createInsforgeServer();
-  const { data: { user } } = await insforge.auth.getCurrentUser();
+  const supabase = supabaseAdmin();
+  const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated." };
   if (!input.signature.trim()) return { error: "Signature is required." };
 
   // Verify appointment belongs to this client
-  const { data: appt } = await insforge.database
+  const { data: appt } = await supabase
     .from("appointments")
     .select("id, client_id")
     .eq("id", input.appointment_id)
@@ -85,7 +85,7 @@ export async function submitIntakeForm(input: {
     .single();
   if (!appt) return { error: "Appointment not found." };
 
-  const { error } = await insforge.database.from("intake_forms").insert([
+  const { error } = await supabase.from("intake_forms").insert([
     {
       client_id: user.id,
       appointment_id: input.appointment_id,
@@ -111,8 +111,8 @@ export async function submitIntakeForm(input: {
 }
 
 export async function getAdminIntakeForms() {
-  const insforge = createInsforgeAdmin();
-  const { data } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { data } = await supabase
     .from("intake_forms")
     .select("id, signed_at, created_at, hair_type, concerns, allergies, health_conditions, clients(id, full_name), appointments(id, start_time, services(id, name))")
     .not("signed_at", "is", null)

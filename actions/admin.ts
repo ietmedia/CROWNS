@@ -1,26 +1,35 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createInsforgeAdmin } from "@/lib/insforge-admin";
+import { supabaseAdmin } from "@/lib/supabase";
 import { stripe } from "@/lib/stripe";
 import { generateSlots } from "@/lib/utils";
+
+/**
+ * Strips characters that are significant in PostgREST's `.or()` / filter grammar
+ * (comma, parens, quotes, backslash) plus the `ilike` wildcards, so a search
+ * term like "Doe, Jane" can't break the filter or match unexpectedly.
+ */
+function likeTerm(raw: string): string {
+  return `%${raw.replace(/[,()"'\\%_*]/g, " ").trim()}%`;
+}
 
 // ─── Admin Create Booking (walk-in or existing client) ───────────────────────
 
 export async function getAdminBookingFormData() {
-  const insforge = createInsforgeAdmin();
+  const supabase = supabaseAdmin();
   const [servicesResult, staffResult, settingsResult] = await Promise.all([
-    insforge.database
+    supabase
       .from("services")
       .select("id, name, duration_minutes, price_cents, deposit_cents")
       .eq("is_active", true)
       .order("name"),
-    insforge.database
+    supabase
       .from("staff")
       .select("id, name")
       .eq("is_active", true)
       .order("name"),
-    insforge.database.from("settings").select("open_time, close_time, slot_interval_minutes").limit(1).single(),
+    supabase.from("settings").select("open_time, close_time, slot_interval_minutes").limit(1).single(),
   ]);
   return {
     services: (servicesResult.data ?? []) as { id: string; name: string; duration_minutes: number; price_cents: number; deposit_cents: number }[],
@@ -30,14 +39,14 @@ export async function getAdminBookingFormData() {
 }
 
 export async function getAdminAvailableSlots(date: string, serviceId: string, staffId: string | null) {
-  const insforge = createInsforgeAdmin();
+  const supabase = supabaseAdmin();
 
   const [serviceResult, settingsResult] = await Promise.all([
-    insforge.database.from("services").select("duration_minutes").eq("id", serviceId).single(),
-    insforge.database.from("settings").select("open_time, close_time, slot_interval_minutes").limit(1).single(),
+    supabase.from("services").select("duration_minutes").eq("id", serviceId).single(),
+    supabase.from("settings").select("open_time, close_time, slot_interval_minutes").limit(1).single(),
   ]);
 
-  let bookedQuery = insforge.database
+  let bookedQuery = supabase
     .from("appointments")
     .select("start_time, end_time")
     .gte("start_time", `${date}T00:00:00.000Z`)
@@ -66,9 +75,9 @@ export async function getAdminAvailableSlots(date: string, serviceId: string, st
 }
 
 export async function searchClients(query: string) {
-  const insforge = createInsforgeAdmin();
-  const s = `%${query}%`;
-  const { data } = await insforge.database
+  const supabase = supabaseAdmin();
+  const s = likeTerm(query);
+  const { data } = await supabase
     .from("clients")
     .select("id, full_name, email, phone")
     .or(`full_name.ilike.${s},email.ilike.${s},phone.ilike.${s}`)
@@ -92,8 +101,8 @@ export async function createAdminBooking(input: {
     return { error: "Client or guest name is required." };
   }
 
-  const insforge = createInsforgeAdmin();
-  const { error } = await insforge.database.from("appointments").insert([{
+  const supabase = supabaseAdmin();
+  const { error } = await supabase.from("appointments").insert([{
     client_id: input.clientId ?? null,
     guest_name: input.guestName?.trim() ?? null,
     guest_phone: input.guestPhone?.trim() ?? null,
@@ -118,14 +127,14 @@ export async function createAdminBooking(input: {
 // ─── Stats for Dashboard ─────────────────────────────────────────────────────
 
 export async function getAdminStats() {
-  const insforge = createInsforgeAdmin();
+  const supabase = supabaseAdmin();
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const todayEnd = new Date();
   todayEnd.setHours(23, 59, 59, 999);
 
   const [apptResult, clientResult, reviewResult] = await Promise.all([
-    insforge.database
+    supabase
       .from("appointments")
       .select(`
         id, status, payment_status, start_time, end_time, guest_name, guest_phone,
@@ -136,10 +145,10 @@ export async function getAdminStats() {
       .gte("start_time", todayStart.toISOString())
       .lte("start_time", todayEnd.toISOString())
       .order("start_time"),
-    insforge.database
+    supabase
       .from("clients")
       .select("id", { count: "exact", head: true }),
-    insforge.database.from("reviews").select("rating"),
+    supabase.from("reviews").select("rating"),
   ]);
 
   const todayAppointments = (apptResult.data ?? []) as unknown as Array<{
@@ -187,14 +196,14 @@ export async function getAdminStats() {
 // ─── Appointments for a calendar week ────────────────────────────────────────
 
 export async function getWeekAppointments(weekStart: string) {
-  const insforge = createInsforgeAdmin();
+  const supabase = supabaseAdmin();
   const start = new Date(weekStart);
   start.setHours(0, 0, 0, 0);
   const end = new Date(start);
   end.setDate(end.getDate() + 7);
   end.setHours(23, 59, 59, 999);
 
-  const { data, error } = await insforge.database
+  const { data, error } = await supabase
     .from("appointments")
     .select(`
       id, status, start_time, end_time, guest_name,
@@ -219,12 +228,12 @@ export async function getAdminAppointments(filters: {
   date_to?: string;
   page?: number;
 }) {
-  const insforge = createInsforgeAdmin();
+  const supabase = supabaseAdmin();
   const page = Math.max(1, filters.page ?? 1);
   const limit = 20;
   const offset = (page - 1) * limit;
 
-  let query = insforge.database
+  let query = supabase
     .from("appointments")
     .select(
       `
@@ -267,8 +276,8 @@ export async function getAdminAppointments(filters: {
 // ─── Get staff list (for filter dropdown) ────────────────────────────────────
 
 export async function getActiveStaff() {
-  const insforge = createInsforgeAdmin();
-  const { data } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { data } = await supabase
     .from("staff")
     .select("id, name")
     .eq("is_active", true)
@@ -283,8 +292,8 @@ export async function updateAppointmentStatus(id: string, status: string) {
     return { error: "Invalid status." };
   }
 
-  const insforge = createInsforgeAdmin();
-  const { error } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { error } = await supabase
     .from("appointments")
     .update({ status, updated_at: new Date().toISOString() })
     .eq("id", id);
@@ -303,19 +312,19 @@ export async function getClients(filters: {
   search?: string;
   page?: number;
 }) {
-  const insforge = createInsforgeAdmin();
+  const supabase = supabaseAdmin();
   const page = Math.max(1, filters.page ?? 1);
   const limit = 20;
   const offset = (page - 1) * limit;
 
-  let query = insforge.database
+  let query = supabase
     .from("clients")
     .select("id, full_name, email, phone, preferred_channel, created_at", { count: "exact" })
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 
   if (filters.search) {
-    const s = `%${filters.search}%`;
+    const s = likeTerm(filters.search);
     query = query.or(`full_name.ilike.${s},email.ilike.${s},phone.ilike.${s}`);
   }
 
@@ -339,10 +348,10 @@ export async function getClients(filters: {
 // ─── Feature 16: Client Profile ───────────────────────────────────────────────
 
 export async function getClientProfile(id: string) {
-  const insforge = createInsforgeAdmin();
+  const supabase = supabaseAdmin();
 
   const [clientResult, apptResult, reviewResult, intakeResult] = await Promise.all([
-    insforge.database
+    supabase
       .from("clients")
       .select(`
         id, full_name, email, phone, preferred_channel,
@@ -351,7 +360,7 @@ export async function getClientProfile(id: string) {
       `)
       .eq("id", id)
       .single(),
-    insforge.database
+    supabase
       .from("appointments")
       .select(`
         id, status, start_time, payment_status,
@@ -361,12 +370,12 @@ export async function getClientProfile(id: string) {
       .eq("client_id", id)
       .order("start_time", { ascending: false })
       .limit(15),
-    insforge.database
+    supabase
       .from("reviews")
       .select("id, rating, comment, created_at, services(id, name)")
       .eq("client_id", id)
       .order("created_at", { ascending: false }),
-    insforge.database
+    supabase
       .from("intake_forms")
       .select(`
         id, hair_type, hair_density, hair_texture, concerns, goals,
@@ -432,8 +441,8 @@ export async function getClientProfile(id: string) {
 }
 
 export async function updateClientAdminNotes(id: string, notes: string) {
-  const insforge = createInsforgeAdmin();
-  const { error } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { error } = await supabase
     .from("clients")
     .update({ admin_notes: notes, updated_at: new Date().toISOString() })
     .eq("id", id);
@@ -446,16 +455,16 @@ export async function updateClientAdminNotes(id: string, notes: string) {
 // ─── Feature 14: No-Show Protection ──────────────────────────────────────────
 
 export async function chargeNoShow(appointmentId: string) {
-  const insforge = createInsforgeAdmin();
+  const supabase = supabaseAdmin();
 
   // 1. Fetch appointment + client + settings
   const [apptResult, settingsResult] = await Promise.all([
-    insforge.database
+    supabase
       .from("appointments")
       .select("id, status, client_id, clients(id, full_name, stripe_customer_id)")
       .eq("id", appointmentId)
       .single(),
-    insforge.database
+    supabase
       .from("settings")
       .select("no_show_fee_cents")
       .limit(1)
@@ -478,7 +487,7 @@ export async function chargeNoShow(appointmentId: string) {
   }
 
   // 2. Mark as no_show immediately
-  await insforge.database
+  await supabase
     .from("appointments")
     .update({ status: "no_show", updated_at: new Date().toISOString() })
     .eq("id", appointmentId);

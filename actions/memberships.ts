@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createInsforgeAdmin } from "@/lib/insforge-admin";
-import { createInsforgeServer } from "@/lib/insforge-server";
+import { supabaseAdmin } from "@/lib/supabase";
+import { getCurrentUser, syncClient } from "@/lib/current-user";
 
 export type Membership = {
   id: string;
@@ -31,8 +31,8 @@ export type ClientMembership = {
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
 export async function getMemberships() {
-  const insforge = createInsforgeAdmin();
-  const { data, error } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { data, error } = await supabase
     .from("memberships")
     .select("id, name, slug, description, price_cents, billing_interval, features, stripe_price_id, is_active, created_at")
     .order("price_cents");
@@ -50,8 +50,8 @@ export async function createMembership(input: {
 }) {
   if (!input.name.trim()) return { error: "Name is required." };
   if (!input.slug.trim()) return { error: "Slug is required." };
-  const insforge = createInsforgeAdmin();
-  const { error } = await insforge.database.from("memberships").insert([
+  const supabase = supabaseAdmin();
+  const { error } = await supabase.from("memberships").insert([
     {
       name: input.name.trim(),
       slug: input.slug.trim().toLowerCase().replace(/\s+/g, "-"),
@@ -75,8 +75,8 @@ export async function updateMembership(id: string, input: {
   features: string[];
   stripe_price_id: string;
 }) {
-  const insforge = createInsforgeAdmin();
-  const { error } = await insforge.database.from("memberships").update({
+  const supabase = supabaseAdmin();
+  const { error } = await supabase.from("memberships").update({
     name: input.name.trim(),
     description: input.description.trim(),
     price_cents: input.price_cents,
@@ -90,8 +90,8 @@ export async function updateMembership(id: string, input: {
 }
 
 export async function toggleMembershipActive(id: string, is_active: boolean) {
-  const insforge = createInsforgeAdmin();
-  const { error } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { error } = await supabase
     .from("memberships")
     .update({ is_active })
     .eq("id", id);
@@ -101,8 +101,8 @@ export async function toggleMembershipActive(id: string, is_active: boolean) {
 }
 
 export async function getAdminClientMemberships() {
-  const insforge = createInsforgeAdmin();
-  const { data, error } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { data, error } = await supabase
     .from("client_memberships")
     .select("id, client_id, membership_id, stripe_subscription_id, status, started_at, next_billing_date, memberships(id, name, price_cents), clients(id, full_name, email)")
     .order("started_at", { ascending: false })
@@ -120,8 +120,8 @@ export async function getAdminClientMemberships() {
 }
 
 export async function cancelClientMembership(id: string) {
-  const insforge = createInsforgeAdmin();
-  const { error } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { error } = await supabase
     .from("client_memberships")
     .update({ status: "cancelled" })
     .eq("id", id);
@@ -133,11 +133,11 @@ export async function cancelClientMembership(id: string) {
 // ─── Client ───────────────────────────────────────────────────────────────────
 
 export async function getMyMembership() {
-  const insforge = await createInsforgeServer();
-  const { data: { user } } = await insforge.auth.getCurrentUser();
+  const supabase = supabaseAdmin();
+  const user = await getCurrentUser();
   if (!user) return { data: null, error: "Not authenticated." };
 
-  const { data, error } = await insforge.database
+  const { data, error } = await supabase
     .from("client_memberships")
     .select("id, membership_id, stripe_subscription_id, status, started_at, next_billing_date, memberships(id, name, slug, description, price_cents, billing_interval, features)")
     .eq("client_id", user.id)
@@ -148,12 +148,13 @@ export async function getMyMembership() {
 }
 
 export async function subscribeMembership(membershipId: string) {
-  const insforge = await createInsforgeServer();
-  const { data: { user } } = await insforge.auth.getCurrentUser();
+  const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated." };
+  await syncClient(user);
+  const supabase = supabaseAdmin();
 
   // Check no active membership already
-  const { data: existing, error: checkError } = await insforge.database
+  const { data: existing, error: checkError } = await supabase
     .from("client_memberships")
     .select("id")
     .eq("client_id", user.id)
@@ -165,7 +166,7 @@ export async function subscribeMembership(membershipId: string) {
   const nextMonth = new Date();
   nextMonth.setMonth(nextMonth.getMonth() + 1);
 
-  const { error } = await insforge.database.from("client_memberships").insert([
+  const { error } = await supabase.from("client_memberships").insert([
     {
       client_id: user.id,
       membership_id: membershipId,
@@ -179,11 +180,11 @@ export async function subscribeMembership(membershipId: string) {
 }
 
 export async function cancelMyMembership(id: string) {
-  const insforge = await createInsforgeServer();
-  const { data: { user } } = await insforge.auth.getCurrentUser();
+  const supabase = supabaseAdmin();
+  const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated." };
 
-  const { error } = await insforge.database
+  const { error } = await supabase
     .from("client_memberships")
     .update({ status: "cancelled" })
     .eq("id", id)

@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createInsforgeServer } from "@/lib/insforge-server";
+import { supabaseAdmin } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/current-user";
 
 export async function submitReview({
   appointmentId,
@@ -16,15 +17,13 @@ export async function submitReview({
   rating: number;
   comment?: string;
 }) {
-  const insforge = await createInsforgeServer();
-  const {
-    data: { user },
-  } = await insforge.auth.getCurrentUser();
+  const supabase = supabaseAdmin();
+  const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
 
   if (rating < 1 || rating > 5) return { error: "Rating must be 1–5." };
 
-  const { data: appt } = await insforge.database
+  const { data: appt } = await supabase
     .from("appointments")
     .select("id, client_id, status")
     .eq("id", appointmentId)
@@ -35,7 +34,7 @@ export async function submitReview({
     return { error: "Only completed appointments can be reviewed." };
   }
 
-  const { error } = await insforge.database.from("reviews").insert([
+  const { error } = await supabase.from("reviews").insert([
     {
       appointment_id: appointmentId,
       client_id: user.id,

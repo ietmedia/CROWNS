@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createInsforgeAdmin } from "@/lib/insforge-admin";
+import { supabaseAdmin } from "@/lib/supabase";
 
 const SETTINGS_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -21,8 +21,8 @@ export type SalonSettings = {
 };
 
 export async function getSettings(): Promise<{ data: SalonSettings | null; error: string | null }> {
-  const insforge = createInsforgeAdmin();
-  const { data, error } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { data, error } = await supabase
     .from("settings")
     .select(
       "id, salon_name, phone, email, address, open_time, close_time, slot_interval_minutes, cancellation_policy_hours, no_show_fee_cents, reminder_hours_before, google_calendar_id"
@@ -48,8 +48,8 @@ export async function updateSettings(input: {
 }) {
   if (!input.salon_name.trim()) return { error: "Salon name is required." };
 
-  const insforge = createInsforgeAdmin();
-  const { data: existing } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { data: existing } = await supabase
     .from("settings")
     .select("id")
     .eq("id", SETTINGS_ID)
@@ -71,13 +71,13 @@ export async function updateSettings(input: {
   };
 
   if (existing) {
-    const { error } = await insforge.database
+    const { error } = await supabase
       .from("settings")
       .update(payload)
       .eq("id", SETTINGS_ID);
     if (error) return { error: error.message };
   } else {
-    const { error } = await insforge.database
+    const { error } = await supabase
       .from("settings")
       .insert([{ id: SETTINGS_ID, ...payload }]);
     if (error) return { error: error.message };

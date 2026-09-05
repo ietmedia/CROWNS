@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut } from "@/actions/auth";
+import { SignOutButton } from "@clerk/nextjs";
 
 const SECTIONS = [
   {
@@ -86,14 +86,14 @@ export default function AdminSidebar() {
 
       {/* Sign out */}
       <div className="px-4 py-4 border-t border-border">
-        <form action={signOut}>
+        <SignOutButton redirectUrl="/">
           <button
-            type="submit"
+            type="button"
             className="w-full text-left text-sm text-text-secondary hover:text-error transition-colors"
           >
             Sign Out
           </button>
-        </form>
+        </SignOutButton>
       </div>
     </aside>
   );

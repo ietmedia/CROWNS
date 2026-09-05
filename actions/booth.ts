@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createInsforgeAdmin } from "@/lib/insforge-admin";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export type BoothRenter = {
   id: string;
@@ -14,8 +14,8 @@ export type BoothRenter = {
 };
 
 export async function getBoothRenter(staffId: string) {
-  const insforge = createInsforgeAdmin();
-  const { data } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { data } = await supabase
     .from("booth_renters")
     .select("id, staff_id, monthly_rent_cents, billing_day, stripe_subscription_id, is_active, created_at")
     .eq("staff_id", staffId)
@@ -32,15 +32,15 @@ export async function upsertBoothRenter(
     is_active: boolean;
   }
 ) {
-  const insforge = createInsforgeAdmin();
-  const { data: existing } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { data: existing } = await supabase
     .from("booth_renters")
     .select("id")
     .eq("staff_id", staffId)
     .single();
 
   if (existing) {
-    const { error } = await insforge.database
+    const { error } = await supabase
       .from("booth_renters")
       .update({
         monthly_rent_cents: input.monthly_rent_cents,
@@ -51,7 +51,7 @@ export async function upsertBoothRenter(
       .eq("staff_id", staffId);
     if (error) return { error: error.message };
   } else {
-    const { error } = await insforge.database.from("booth_renters").insert([
+    const { error } = await supabase.from("booth_renters").insert([
       {
         staff_id: staffId,
         monthly_rent_cents: input.monthly_rent_cents,
@@ -68,27 +68,27 @@ export async function upsertBoothRenter(
 }
 
 export async function getStaffDetail(staffId: string) {
-  const insforge = createInsforgeAdmin();
+  const supabase = supabaseAdmin();
 
   const [staffResult, apptResult, payrollResult, boothResult] = await Promise.all([
-    insforge.database
+    supabase
       .from("staff")
       .select("id, name, role, bio, avatar_url, commission_rate, is_active, created_at")
       .eq("id", staffId)
       .single(),
-    insforge.database
+    supabase
       .from("appointments")
       .select("id, status, start_time, services(id, name, price_cents)")
       .eq("staff_id", staffId)
       .order("start_time", { ascending: false })
       .limit(20),
-    insforge.database
+    supabase
       .from("payroll_records")
       .select("id, period_start, period_end, net_payout_cents, status")
       .eq("staff_id", staffId)
       .order("created_at", { ascending: false })
       .limit(10),
-    insforge.database
+    supabase
       .from("booth_renters")
       .select("id, monthly_rent_cents, billing_day, stripe_subscription_id, is_active")
       .eq("staff_id", staffId)

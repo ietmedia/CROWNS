@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { insforge } from "@/lib/insforge-client";
+import { getStaffForService } from "@/actions/booking-data";
 import type { Service, Staff } from "@/types";
 
 interface Props {
@@ -16,17 +16,9 @@ export default function Step2Staff({ service, onSelect, onBack }: Props) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    insforge.database
-      .from("staff_services")
-      .select("staff_id, staff!inner(id, name, role, bio, avatar_url, is_active)")
-      .eq("service_id", service.id)
-      .then(({ data }) => {
-        const active = (data ?? [])
-          .map((row: Record<string, unknown>) => row.staff as Staff)
-          .filter((s) => s?.is_active);
-        setStaff(active);
-        setLoading(false);
-      });
+    getStaffForService(service.id)
+      .then((data) => setStaff(data))
+      .finally(() => setLoading(false));
   }, [service.id]);
 
   if (loading) {

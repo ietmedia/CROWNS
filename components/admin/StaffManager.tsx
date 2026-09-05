@@ -2,13 +2,12 @@
 
 import { useState, useTransition, useRef } from "react";
 import Link from "next/link";
-import { createBrowserClient } from "@insforge/sdk/ssr";
 import {
   type StaffRow,
   createStaff,
   updateStaff,
   toggleStaffActive,
-  updateStaffAvatar,
+  uploadStaffAvatar,
 } from "@/actions/staff";
 
 const ROLES = ["stylist", "colorist", "nail_tech", "esthetician", "other"] as const;
@@ -116,23 +115,14 @@ function AvatarUploader({
     setUploading(true);
     setError(null);
 
-    const insforge = createBrowserClient();
-    const { data, error: storageError } = await insforge.storage
-      .from("avatars")
-      .uploadAuto(file);
+    const fd = new FormData();
+    fd.append("file", file);
+    const result = await uploadStaffAvatar(staff.id, fd);
 
-    if (storageError || !data) {
-      setError("Upload failed.");
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = "";
-      return;
-    }
-
-    const result = await updateStaffAvatar(staff.id, data.url);
-    if (result.error) {
-      setError(result.error);
+    if (result.error || !result.url) {
+      setError(result.error ?? "Upload failed.");
     } else {
-      onUpdate(staff.id, data.url);
+      onUpdate(staff.id, result.url);
     }
     setUploading(false);
     if (fileRef.current) fileRef.current.value = "";

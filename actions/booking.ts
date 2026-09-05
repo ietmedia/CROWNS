@@ -2,8 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createInsforgeServer } from "@/lib/insforge-server";
 import { stripe } from "@/lib/stripe";
+import { supabaseAdmin } from "@/lib/supabase";
+import { getCurrentUser, syncClient } from "@/lib/current-user";
 import { sendBookingConfirmation, sendAdminBookingAlert } from "@/lib/email";
 
 interface BookingInput {
@@ -18,12 +19,13 @@ interface BookingInput {
 }
 
 export async function createBooking(input: BookingInput) {
-  const insforge = await createInsforgeServer();
-  const { data: { user } } = await insforge.auth.getCurrentUser();
-
+  const user = await getCurrentUser();
   if (!user) return { error: "You must be signed in to book." };
 
-  const { data: apptData, error } = await insforge.database
+  await syncClient(user);
+  const supabase = supabaseAdmin();
+
+  const { data: apptData, error } = await supabase
     .from("appointments")
     .insert([{
       client_id: user.id,
@@ -43,7 +45,7 @@ export async function createBooking(input: BookingInput) {
   }
 
   // Send confirmation email (fire-and-forget — don't block redirect)
-  const { data: clientRow } = await insforge.database
+  const { data: clientRow } = await supabase
     .from("clients")
     .select("full_name, email")
     .eq("id", user.id)
@@ -74,12 +76,13 @@ export async function createBooking(input: BookingInput) {
 }
 
 export async function createCheckoutSession(input: BookingInput) {
-  const insforge = await createInsforgeServer();
-  const { data: { user } } = await insforge.auth.getCurrentUser();
-
+  const user = await getCurrentUser();
   if (!user) return { error: "You must be signed in to book." };
 
-  const { data: clientRow } = await insforge.database
+  await syncClient(user);
+  const supabase = supabaseAdmin();
+
+  const { data: clientRow } = await supabase
     .from("clients")
     .select("stripe_customer_id, full_name, email")
     .eq("id", user.id)
@@ -91,7 +94,7 @@ export async function createCheckoutSession(input: BookingInput) {
     email: string;
   } | null;
 
-  const { data: apptData, error: apptError } = await insforge.database
+  const { data: apptData, error: apptError } = await supabase
     .from("appointments")
     .insert([
       {
@@ -148,12 +151,12 @@ export async function createCheckoutSession(input: BookingInput) {
     });
   } catch (err) {
     console.error("[createCheckoutSession] Stripe error:", err);
-    await insforge.database.from("appointments").delete().eq("id", apptData.id);
+    await supabase.from("appointments").delete().eq("id", apptData.id);
     return { error: "Failed to create checkout. Please try again." };
   }
 
   if (!session.url) {
-    await insforge.database.from("appointments").delete().eq("id", apptData.id);
+    await supabase.from("appointments").delete().eq("id", apptData.id);
     return { error: "Failed to create checkout. Please try again." };
   }
 

@@ -1,4 +1,4 @@
-import { createInsforgeAdmin } from "@/lib/insforge-admin";
+import { supabaseAdmin } from "@/lib/supabase";
 
 // ─── Data helpers ─────────────────────────────────────────────────────────────
 
@@ -12,14 +12,14 @@ function fmt(cents: number) {
 }
 
 async function getReportData(range: "7d" | "30d" | "90d") {
-  const insforge = createInsforgeAdmin();
+  const supabase = supabaseAdmin();
   const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
   const end = new Date();
   const start = new Date();
   start.setDate(start.getDate() - days);
 
   const [apptResult, staffResult] = await Promise.all([
-    insforge.database
+    supabase
       .from("appointments")
       .select(
         "id, status, payment_status, start_time, services(id, name, price_cents, deposit_cents), staff(id, name)"
@@ -27,7 +27,7 @@ async function getReportData(range: "7d" | "30d" | "90d") {
       .gte("start_time", start.toISOString())
       .lte("start_time", end.toISOString())
       .neq("status", "cancelled"),
-    insforge.database
+    supabase
       .from("staff")
       .select("id, name")
       .eq("is_active", true)

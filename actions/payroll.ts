@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createInsforgeAdmin } from "@/lib/insforge-admin";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export type PayrollRecord = {
   id: string;
@@ -34,24 +34,24 @@ export async function calculatePayroll(
   period_start: string,
   period_end: string
 ): Promise<{ data: StaffPayrollSummary[]; error: string | null }> {
-  const insforge = createInsforgeAdmin();
+  const supabase = supabaseAdmin();
 
   const end = new Date(period_end);
   end.setHours(23, 59, 59, 999);
 
   const [apptResult, staffResult, boothResult] = await Promise.all([
-    insforge.database
+    supabase
       .from("appointments")
       .select("id, staff_id, services(price_cents)")
       .eq("status", "completed")
       .gte("start_time", new Date(period_start).toISOString())
       .lte("start_time", end.toISOString()),
-    insforge.database
+    supabase
       .from("staff")
       .select("id, name, commission_rate")
       .eq("is_active", true)
       .order("name"),
-    insforge.database
+    supabase
       .from("booth_renters")
       .select("staff_id, monthly_rent_cents")
       .eq("is_active", true),
@@ -110,7 +110,7 @@ export async function savePayrollRecords(
   period_start: string,
   period_end: string
 ) {
-  const insforge = createInsforgeAdmin();
+  const supabase = supabaseAdmin();
   const rows = summaries.map((s) => ({
     staff_id: s.staff_id,
     period_start,
@@ -123,15 +123,15 @@ export async function savePayrollRecords(
     net_payout_cents: s.net_payout_cents,
     status: "pending",
   }));
-  const { error } = await insforge.database.from("payroll_records").insert(rows);
+  const { error } = await supabase.from("payroll_records").insert(rows);
   if (error) return { error: error.message };
   revalidatePath("/admin/payroll");
   return { success: true };
 }
 
 export async function markPayrollPaid(id: string) {
-  const insforge = createInsforgeAdmin();
-  const { error } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { error } = await supabase
     .from("payroll_records")
     .update({ status: "paid" })
     .eq("id", id);
@@ -141,8 +141,8 @@ export async function markPayrollPaid(id: string) {
 }
 
 export async function getPayrollHistory(staffId?: string) {
-  const insforge = createInsforgeAdmin();
-  let query = insforge.database
+  const supabase = supabaseAdmin();
+  let query = supabase
     .from("payroll_records")
     .select("id, staff_id, period_start, period_end, total_services, gross_revenue_cents, commission_rate, commission_cents, booth_rent_cents, net_payout_cents, status, created_at, staff(id, name)")
     .order("created_at", { ascending: false })

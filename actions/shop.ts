@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createInsforgeAdmin } from "@/lib/insforge-admin";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export type ShopProduct = {
   id: string;
@@ -17,8 +17,8 @@ export type ShopProduct = {
 };
 
 export async function getShopProducts(adminView = false) {
-  const insforge = createInsforgeAdmin();
-  let query = insforge.database
+  const supabase = supabaseAdmin();
+  let query = supabase
     .from("shop_products")
     .select("id, name, description, price_cents, category, image_url, stripe_price_id, inventory, is_active, created_at")
     .order("category")
@@ -39,8 +39,8 @@ export async function createShopProduct(input: {
   inventory: number;
 }) {
   if (!input.name.trim()) return { error: "Name is required." };
-  const insforge = createInsforgeAdmin();
-  const { error } = await insforge.database.from("shop_products").insert([
+  const supabase = supabaseAdmin();
+  const { error } = await supabase.from("shop_products").insert([
     {
       name: input.name.trim(),
       description: input.description.trim() || null,
@@ -64,8 +64,8 @@ export async function updateShopProduct(id: string, input: {
   stripe_price_id: string;
   inventory: number;
 }) {
-  const insforge = createInsforgeAdmin();
-  const { error } = await insforge.database.from("shop_products").update({
+  const supabase = supabaseAdmin();
+  const { error } = await supabase.from("shop_products").update({
     name: input.name.trim(),
     description: input.description.trim() || null,
     price_cents: input.price_cents,
@@ -80,8 +80,8 @@ export async function updateShopProduct(id: string, input: {
 }
 
 export async function toggleShopProductActive(id: string, is_active: boolean) {
-  const insforge = createInsforgeAdmin();
-  const { error } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { error } = await supabase
     .from("shop_products")
     .update({ is_active })
     .eq("id", id);

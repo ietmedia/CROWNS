@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { insforge } from "@/lib/insforge-client";
+import { getActiveServices } from "@/actions/booking-data";
 import { formatCents } from "@/lib/utils";
 import type { Service, ServiceCategory } from "@/types";
 
@@ -25,15 +25,9 @@ export default function Step1Services({ onSelect }: Props) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    insforge.database
-      .from("services")
-      .select("*")
-      .eq("is_active", true)
-      .order("name")
-      .then(({ data }) => {
-        setServices((data as Service[]) ?? []);
-        setLoading(false);
-      });
+    getActiveServices()
+      .then((data) => setServices(data))
+      .finally(() => setLoading(false));
   }, []);
 
   const categories = [

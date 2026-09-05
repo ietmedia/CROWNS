@@ -1,15 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createInsforgeServer } from "@/lib/insforge-server";
+import { supabaseAdmin } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/current-user";
 
 export async function getMyAppointments() {
-  const insforge = await createInsforgeServer();
-  const { data: { user } } = await insforge.auth.getCurrentUser();
+  const supabase = supabaseAdmin();
+  const user = await getCurrentUser();
 
   if (!user) return { data: null, error: "Not authenticated" };
 
-  const { data, error } = await insforge.database
+  const { data, error } = await supabase
     .from("appointments")
     .select(
       `
@@ -27,12 +28,12 @@ export async function getMyAppointments() {
 }
 
 export async function cancelAppointment(id: string, reason: string) {
-  const insforge = await createInsforgeServer();
-  const { data: { user } } = await insforge.auth.getCurrentUser();
+  const supabase = supabaseAdmin();
+  const user = await getCurrentUser();
 
   if (!user) return { error: "Not authenticated" };
 
-  const { data: appt } = await insforge.database
+  const { data: appt } = await supabase
     .from("appointments")
     .select("client_id, start_time, status")
     .eq("id", id)
@@ -47,7 +48,7 @@ export async function cancelAppointment(id: string, reason: string) {
     return { error: "This appointment cannot be cancelled." };
   }
 
-  const { data: settings } = await insforge.database
+  const { data: settings } = await supabase
     .from("settings")
     .select("cancellation_policy_hours")
     .limit(1)
@@ -66,7 +67,7 @@ export async function cancelAppointment(id: string, reason: string) {
     };
   }
 
-  const { error } = await insforge.database
+  const { error } = await supabase
     .from("appointments")
     .update({
       status: "cancelled",

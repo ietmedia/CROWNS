@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createInsforgeAdmin } from "@/lib/insforge-admin";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export type ServiceRow = {
   id: string;
@@ -18,8 +18,8 @@ export type ServiceRow = {
 };
 
 export async function getServices() {
-  const insforge = createInsforgeAdmin();
-  const { data, error } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { data, error } = await supabase
     .from("services")
     .select(
       "id, name, category, description, duration_minutes, price_cents, deposit_cents, image_urls, image_keys, is_active, created_at"
@@ -37,8 +37,8 @@ export async function createService(input: {
   deposit_cents: number;
 }) {
   if (!input.name.trim()) return { error: "Name is required." };
-  const insforge = createInsforgeAdmin();
-  const { error } = await insforge.database.from("services").insert([
+  const supabase = supabaseAdmin();
+  const { error } = await supabase.from("services").insert([
     {
       name: input.name.trim(),
       category: input.category,
@@ -65,8 +65,8 @@ export async function updateService(
   }
 ) {
   if (!input.name.trim()) return { error: "Name is required." };
-  const insforge = createInsforgeAdmin();
-  const { error } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { error } = await supabase
     .from("services")
     .update({
       name: input.name.trim(),
@@ -83,8 +83,8 @@ export async function updateService(
 }
 
 export async function toggleServiceActive(id: string, is_active: boolean) {
-  const insforge = createInsforgeAdmin();
-  const { error } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { error } = await supabase
     .from("services")
     .update({ is_active })
     .eq("id", id);
@@ -93,16 +93,42 @@ export async function toggleServiceActive(id: string, is_active: boolean) {
   return { success: true };
 }
 
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"];
+
+/** Uploads an image to the `services` bucket and appends it to the service. */
+export async function uploadServiceImage(serviceId: string, formData: FormData) {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "No file provided." };
+  if (!IMAGE_TYPES.includes(file.type)) return { error: "Please upload an image file." };
+  if (file.size > 5 * 1024 * 1024) return { error: "Image must be under 5MB." };
+
+  const supabase = supabaseAdmin();
+  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const key = `${serviceId}/${crypto.randomUUID()}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("services")
+    .upload(key, file, { contentType: file.type, upsert: false });
+  if (uploadError) return { error: "Upload failed. Try again." };
+
+  const { data: pub } = supabase.storage.from("services").getPublicUrl(key);
+  const url = pub.publicUrl;
+
+  const result = await addServiceImage(serviceId, url, key);
+  if (result.error) return { error: result.error };
+  return { url, key };
+}
+
 export async function addServiceImage(serviceId: string, url: string, key: string) {
-  const insforge = createInsforgeAdmin();
-  const { data } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { data } = await supabase
     .from("services")
     .select("image_urls, image_keys")
     .eq("id", serviceId)
     .single();
   if (!data) return { error: "Service not found." };
   const current = data as { image_urls: string[]; image_keys: string[] };
-  const { error } = await insforge.database
+  const { error } = await supabase
     .from("services")
     .update({
       image_urls: [...(current.image_urls ?? []), url],
@@ -115,11 +141,11 @@ export async function addServiceImage(serviceId: string, url: string, key: strin
 }
 
 export async function removeServiceImage(serviceId: string, imageKey: string) {
-  const insforge = createInsforgeAdmin();
+  const supabase = supabaseAdmin();
   // Delete from storage bucket
-  await insforge.storage.from("services").remove(imageKey);
+  await supabase.storage.from("services").remove([imageKey]);
   // Remove key + url from service arrays
-  const { data } = await insforge.database
+  const { data } = await supabase
     .from("services")
     .select("image_urls, image_keys")
     .eq("id", serviceId)
@@ -135,7 +161,7 @@ export async function removeServiceImage(serviceId: string, imageKey: string) {
     newKeys.splice(idx, 1);
     newUrls.splice(idx, 1);
   }
-  const { error } = await insforge.database
+  const { error } = await supabase
     .from("services")
     .update({ image_urls: newUrls, image_keys: newKeys })
     .eq("id", serviceId);
@@ -145,20 +171,18 @@ export async function removeServiceImage(serviceId: string, imageKey: string) {
 }
 
 export async function deleteService(id: string) {
-  const insforge = createInsforgeAdmin();
+  const supabase = supabaseAdmin();
   // Delete all images from storage first
-  const { data } = await insforge.database
+  const { data } = await supabase
     .from("services")
     .select("image_keys")
     .eq("id", id)
     .single();
   if (data) {
     const keys = (data as { image_keys: string[] }).image_keys ?? [];
-    for (const key of keys) {
-      await insforge.storage.from("services").remove(key);
-    }
+    if (keys.length) await supabase.storage.from("services").remove(keys);
   }
-  const { error } = await insforge.database.from("services").delete().eq("id", id);
+  const { error } = await supabase.from("services").delete().eq("id", id);
   if (error) return { error: error.message };
   revalidatePath("/admin/services");
   return { success: true };

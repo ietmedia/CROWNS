@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
-import { createInsforgeAdmin } from "@/lib/insforge-admin";
+import { supabaseAdmin } from "@/lib/supabase";
 import { sendBookingConfirmation } from "@/lib/email";
 
 export async function POST(request: NextRequest) {
@@ -24,14 +24,14 @@ export async function POST(request: NextRequest) {
   }
 
   // Use admin client — webhook runs outside user session
-  const insforge = createInsforgeAdmin();
+  const supabase = supabaseAdmin();
 
   try {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
       const meta = session.metadata ?? {};
 
-      const { data: updated, error } = await insforge.database
+      const { data: updated, error } = await supabase
         .from("appointments")
         .update({
           status: "confirmed",
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
       // Save stripe_customer_id to clients table if present
       if (session.customer && meta.client_id) {
-        await insforge.database
+        await supabase
           .from("clients")
           .update({ stripe_customer_id: session.customer as string })
           .eq("id", meta.client_id);
@@ -63,18 +63,18 @@ export async function POST(request: NextRequest) {
       // Send confirmation email — fire and forget; don't block webhook response
       if (meta.client_id) {
         const [clientRes, serviceRes, staffRes] = await Promise.all([
-          insforge.database
+          supabase
             .from("clients")
             .select("email, full_name")
             .eq("id", meta.client_id)
             .single(),
-          insforge.database
+          supabase
             .from("services")
             .select("name")
             .eq("id", meta.service_id)
             .single(),
           meta.staff_id && meta.staff_id !== "any"
-            ? insforge.database
+            ? supabase
                 .from("staff")
                 .select("name")
                 .eq("id", meta.staff_id)

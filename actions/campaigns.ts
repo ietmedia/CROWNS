@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createInsforgeAdmin } from "@/lib/insforge-admin";
-import { createInsforgeServer } from "@/lib/insforge-server";
+import { supabaseAdmin } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/current-user";
 
 export type CampaignRow = {
   id: string;
@@ -19,8 +19,8 @@ export type CampaignRow = {
 };
 
 export async function getCampaigns(): Promise<{ data: CampaignRow[]; error: string | null }> {
-  const insforge = createInsforgeAdmin();
-  const { data, error } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { data, error } = await supabase
     .from("campaigns")
     .select("*")
     .order("created_at", { ascending: false });
@@ -38,12 +38,11 @@ export async function createCampaign(input: {
   if (!input.subject.trim()) return { data: null, error: "Subject is required." };
   if (!input.body_template.trim()) return { data: null, error: "Message body is required." };
 
-  const insforge = await createInsforgeServer();
-  const { data: { user } } = await insforge.auth.getCurrentUser();
+  const user = await getCurrentUser();
   if (!user) return { data: null, error: "Not authenticated." };
 
-  const admin = createInsforgeAdmin();
-  const { data, error } = await admin.database
+  const supabase = supabaseAdmin();
+  const { data, error } = await supabase
     .from("campaigns")
     .insert([{
       name: input.name.trim(),
@@ -67,8 +66,8 @@ export async function updateCampaignStatus(
   id: string,
   status: "draft" | "approved"
 ): Promise<{ error: string | null }> {
-  const insforge = createInsforgeAdmin();
-  const { error } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { error } = await supabase
     .from("campaigns")
     .update({ status })
     .eq("id", id);
@@ -78,8 +77,8 @@ export async function updateCampaignStatus(
 }
 
 export async function deleteCampaign(id: string): Promise<{ error: string | null }> {
-  const insforge = createInsforgeAdmin();
-  const { error } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { error } = await supabase
     .from("campaigns")
     .delete()
     .eq("id", id);

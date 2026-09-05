@@ -1,20 +1,20 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createInsforgeServer } from "@/lib/insforge-server";
+import { supabaseAdmin } from "@/lib/supabase";
+import { getCurrentUser, syncClient } from "@/lib/current-user";
 
 export async function getMyProfile() {
-  const insforge = await createInsforgeServer();
-  const { data: { user } } = await insforge.auth.getCurrentUser();
+  const user = await getCurrentUser();
   if (!user) return null;
 
-  const { data } = await insforge.database
-    .from("clients")
-    .select("id, full_name, email, phone")
-    .eq("id", user.id)
-    .single();
-
-  return data as { id: string; full_name: string; email: string; phone: string | null } | null;
+  const client = await syncClient(user);
+  return (client ?? null) as {
+    id: string;
+    full_name: string;
+    email: string;
+    phone: string | null;
+  } | null;
 }
 
 export async function updateMyProfile(formData: FormData) {
@@ -23,11 +23,12 @@ export async function updateMyProfile(formData: FormData) {
 
   if (!fullName || fullName.length < 2) return { error: "Please enter your name." };
 
-  const insforge = await createInsforgeServer();
-  const { data: { user } } = await insforge.auth.getCurrentUser();
+  const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated." };
 
-  const { error } = await insforge.database
+  await syncClient(user);
+  const supabase = supabaseAdmin();
+  const { error } = await supabase
     .from("clients")
     .update({
       full_name: fullName,

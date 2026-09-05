@@ -1,8 +1,16 @@
 export const dynamic = "force-dynamic";
 
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import AdminSidebar from "@/components/layout/AdminSidebar";
+
+// Admins are identified by an env allowlist of email addresses. A
+// `publicMetadata.role === "admin"` value set in the Clerk Dashboard is also
+// honoured, so either mechanism grants access.
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
+  .split(",")
+  .map((email) => email.trim().toLowerCase())
+  .filter(Boolean);
 
 export default async function AdminMainLayout({
   children,
@@ -15,12 +23,26 @@ export default async function AdminMainLayout({
     redirect("/admin/login");
   }
 
-  const client = await clerkClient();
-  const user = await client.users.getUser(userId);
-  const role = (user.publicMetadata as { role?: string } | undefined)?.role;
+  let isAdmin = false;
+  try {
+    const user = await currentUser();
+    const emails = (user?.emailAddresses ?? [])
+      .map((entry) => entry.emailAddress?.toLowerCase())
+      .filter((email): email is string => Boolean(email));
+    const hasAdminRole =
+      (user?.publicMetadata as { role?: string } | undefined)?.role === "admin";
 
-  if (role !== "admin") {
-    redirect("/admin/login");
+    isAdmin = hasAdminRole || emails.some((email) => ADMIN_EMAILS.includes(email));
+  } catch {
+    // A transient Clerk Backend API failure should not 500 the admin area —
+    // fall through to the not-authorized redirect below.
+    isAdmin = false;
+  }
+
+  if (!isAdmin) {
+    // Redirect to the site root, not /admin/login: the login page bounces any
+    // active Clerk session straight back here, which would loop.
+    redirect("/");
   }
 
   return (

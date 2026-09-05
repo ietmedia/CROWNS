@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createInsforgeAdmin } from "@/lib/insforge-admin";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export type ProductRow = {
   id: string;
@@ -21,8 +21,8 @@ export type ProductRow = {
 };
 
 export async function getProducts(filters: { category?: string; low_stock?: boolean } = {}) {
-  const insforge = createInsforgeAdmin();
-  let query = insforge.database
+  const supabase = supabaseAdmin();
+  let query = supabase
     .from("products")
     .select(
       "id, name, category, sku, description, quantity_on_hand, reorder_level, cost_cents, price_cents, supplier_name, supplier_contact, is_active, created_at, updated_at"
@@ -56,8 +56,8 @@ export async function createProduct(input: {
   supplier_contact: string;
 }) {
   if (!input.name.trim()) return { error: "Name is required." };
-  const insforge = createInsforgeAdmin();
-  const { error } = await insforge.database.from("products").insert([
+  const supabase = supabaseAdmin();
+  const { error } = await supabase.from("products").insert([
     {
       name: input.name.trim(),
       category: input.category,
@@ -92,8 +92,8 @@ export async function updateProduct(
   }
 ) {
   if (!input.name.trim()) return { error: "Name is required." };
-  const insforge = createInsforgeAdmin();
-  const { error } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { error } = await supabase
     .from("products")
     .update({
       name: input.name.trim(),
@@ -115,8 +115,8 @@ export async function updateProduct(
 }
 
 export async function adjustStock(id: string, delta: number) {
-  const insforge = createInsforgeAdmin();
-  const { data } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { data } = await supabase
     .from("products")
     .select("quantity_on_hand")
     .eq("id", id)
@@ -124,7 +124,7 @@ export async function adjustStock(id: string, delta: number) {
   if (!data) return { error: "Product not found." };
   const current = (data as { quantity_on_hand: number }).quantity_on_hand;
   const newQty = Math.max(0, current + delta);
-  const { error } = await insforge.database
+  const { error } = await supabase
     .from("products")
     .update({ quantity_on_hand: newQty, updated_at: new Date().toISOString() })
     .eq("id", id);
@@ -134,8 +134,8 @@ export async function adjustStock(id: string, delta: number) {
 }
 
 export async function toggleProductActive(id: string, is_active: boolean) {
-  const insforge = createInsforgeAdmin();
-  const { error } = await insforge.database
+  const supabase = supabaseAdmin();
+  const { error } = await supabase
     .from("products")
     .update({ is_active, updated_at: new Date().toISOString() })
     .eq("id", id);
