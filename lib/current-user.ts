@@ -6,6 +6,17 @@
 import "server-only";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+const emailNorm = (v: string) => {
+  const e = v.trim().toLowerCase();
+  return /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(e) ? e : null;
+};
+const phoneNorm = (v: string | null) => {
+  const d = (v ?? "").replace(/\D/g, "");
+  if (d.length === 11 && d.startsWith("1")) return d.slice(1);
+  return d.length >= 10 ? d.slice(-10) : null;
+};
 
 export type CurrentUser = {
   id: string;
@@ -75,6 +86,9 @@ export async function syncClient(user: CurrentUser) {
       { onConflict: "id", ignoreDuplicates: true }
     );
 
+  // First sign-up for this user — link any matching imported contact.
+  await claimImportedClient(user, supabase);
+
   const { data: created } = await supabase
     .from("clients")
     .select(cols)
@@ -82,6 +96,62 @@ export async function syncClient(user: CurrentUser) {
     .maybeSingle();
 
   return created;
+}
+
+/**
+ * Looks for an unclaimed row in `imported_clients` matching this user's email
+ * or phone (e.g. a contact brought over from Vagaro), copies the useful bits
+ * onto their fresh `clients` row, and marks the import row claimed. No-op when
+ * there's no match or the staging table doesn't exist.
+ */
+async function claimImportedClient(user: CurrentUser, supabase: SupabaseClient) {
+  const em = emailNorm(user.email);
+  const ph = phoneNorm(user.phone);
+  if (!em && !ph) return;
+
+  const ors: string[] = [];
+  if (em) ors.push(`email_norm.eq.${em}`);
+  if (ph) ors.push(`phone_norm.eq.${ph}`);
+
+  const { data, error } = await supabase
+    .from("imported_clients")
+    .select("id, full_name, phone, notes, tags, last_visit, total_visits")
+    .is("claimed_by", null)
+    .or(ors.join(","))
+    .order("last_visit", { ascending: false, nullsFirst: false })
+    .limit(1);
+
+  if (error || !data?.length) return;
+  const imp = data[0] as {
+    id: string;
+    full_name: string | null;
+    phone: string | null;
+    notes: string | null;
+    tags: string | null;
+    last_visit: string | null;
+    total_visits: number | null;
+  };
+
+  const patch: Record<string, unknown> = {};
+  if (!user.phone && imp.phone) patch.phone = imp.phone;
+  // Prefer the imported name only if Clerk gave us a weak one.
+  const weakName = !user.fullName || user.fullName === "Guest" || user.fullName === user.email.split("@")[0];
+  if (weakName && imp.full_name) patch.full_name = imp.full_name;
+
+  const history = [
+    "Imported from Vagaro.",
+    imp.last_visit ? `Last visit ${imp.last_visit}.` : null,
+    imp.total_visits ? `${imp.total_visits} prior visits.` : null,
+    imp.tags ? `Tags: ${imp.tags}.` : null,
+    imp.notes ? `Notes: ${imp.notes}` : null,
+  ].filter(Boolean).join(" ");
+  patch.admin_notes = history;
+
+  await supabase.from("clients").update(patch).eq("id", user.id);
+  await supabase
+    .from("imported_clients")
+    .update({ claimed_by: user.id, claimed_at: new Date().toISOString() })
+    .eq("id", imp.id);
 }
 
 /** Convenience: current user + guaranteed `clients` row, or null if signed out. */

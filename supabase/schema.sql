@@ -261,6 +261,42 @@ create table if not exists google_calendar_sync (
   last_updated   timestamptz not null default now()
 );
 
+-- ─────────────────────── imported client list (staging) ───────────────────
+-- Contacts brought over from another system (e.g. Vagaro export). Kept
+-- separate from `clients` so there is no fake Clerk id and no FK tangle.
+-- When a real person signs up, syncClient() matches an unclaimed row here by
+-- normalised email or phone, copies the useful fields onto their `clients`
+-- row, and stamps `claimed_by` / `claimed_at`.
+create table if not exists imported_clients (
+  id                uuid primary key default gen_random_uuid(),
+  source            text not null default 'vagaro',
+  source_ref        text,                 -- external id from the source system, if any
+  full_name         text,
+  first_name        text,
+  last_name         text,
+  email             text,
+  email_norm        text,                 -- lower(trim(email))
+  phone             text,
+  phone_norm        text,                 -- last 10 digits
+  notes             text,
+  tags              text,
+  birthday          date,
+  address           text,
+  last_visit        date,
+  total_visits      integer,
+  total_spent_cents integer,
+  raw               jsonb,                -- the original CSV row, verbatim
+  claimed_by        text references clients(id) on delete set null,
+  claimed_at        timestamptz,
+  created_at        timestamptz not null default now()
+);
+create index if not exists imported_clients_email_norm_idx on imported_clients (email_norm);
+create index if not exists imported_clients_phone_norm_idx on imported_clients (phone_norm);
+-- Plain (non-partial) unique index so `on conflict (source, source_ref)` can use
+-- it. Rows with a NULL source_ref never collide (NULLs are distinct in Postgres).
+create unique index if not exists imported_clients_source_ref_key
+  on imported_clients (source, source_ref);
+
 -- ─────────────────────────────── storage ──────────────────────────────────
 
 insert into storage.buckets (id, name, public)
@@ -278,7 +314,7 @@ begin
     'staff','services','clients','staff_services','appointments','reviews','settings',
     'products','booth_renters','payroll_records','campaigns','campaign_sends',
     'memberships','client_memberships','intake_forms','gift_cards','shop_products',
-    'google_calendar_sync'
+    'google_calendar_sync','imported_clients'
   ]
   loop
     execute format('alter table %I enable row level security', t);
